@@ -1,0 +1,15 @@
+services:
+  mysql:
+    platform: linux/x86_64
+    image: public.ecr.aws/docker/library/mysql:8.0
+    ports:
+      - "3306:3306"
+    expose:
+      - "3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: 'root'
+      MYSQL_DATABASE: 'intro_to_hibernate'
+      MYSQL_USER: 'user'
+      MYSQL_PASSWORD: 'password'
+    volumes:
+      - ./container/mysql:/scripts
