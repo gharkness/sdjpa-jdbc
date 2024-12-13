@@ -3,182 +3,53 @@ package com.gharkness.sdjpajdbc.dao;
 import com.gharkness.sdjpajdbc.domain.Author;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-import javax.sql.DataSource;
-import java.sql.*;
-
-@AllArgsConstructor
 @Component
+@AllArgsConstructor
 public class AuthorDaoImpl implements AuthorDao {
 
-    private final DataSource source;
+    private final JdbcTemplate jdbcTemplate;
 
     @Override
     public Author getById(Long id) {
-        Connection connection = null;
-        PreparedStatement preparedStatement = null;
-        ResultSet resultSet = null;
+        String sql = "select author.id as id, first_name, last_name, book.id as book_id, book.isbn, book.publisher, book.title from author\n" +
+                "left outer join book on author.id = book.author_id where author.id = ?";
 
-        try {
-            connection = source.getConnection();
-            preparedStatement = connection.prepareStatement("SELECT * FROM author WHERE id = ?");
-            preparedStatement.setLong(1, id);
-            resultSet = preparedStatement.executeQuery();
-
-
-            if (resultSet.next()) {
-                return getAuthorFromResultSet(resultSet);
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } finally {
-            try {
-                closeAll(connection, preparedStatement, resultSet);
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-        }
-
-        return null;
+        return jdbcTemplate.query(sql, new AuthorExtractor(), id);
     }
 
     @Override
     public Author findAuthorByName(String firstName, String lastName) {
-        Connection connection = null;
-        PreparedStatement preparedStatement = null;
-        ResultSet resultSet = null;
-
-        try {
-            connection = source.getConnection();
-            preparedStatement = connection.prepareStatement("SELECT * FROM author WHERE first_name = ? AND last_name = ?");
-            preparedStatement.setString(1, firstName);
-            preparedStatement.setString(2, lastName);
-            resultSet = preparedStatement.executeQuery();
-
-            if (resultSet.next()) {
-                return getAuthorFromResultSet(resultSet);
-            }
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } finally {
-            try {
-                closeAll(connection, preparedStatement, resultSet);
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-        }
-
-        return null;
+        return jdbcTemplate.queryForObject("SELECT * FROM author WHERE first_name = ? AND last_name = ?", getRowMapper(), firstName, lastName);
     }
 
     @Override
     public Author saveNewAuthor(Author author) {
-        Connection connection = null;
-        PreparedStatement preparedStatement = null;
-        ResultSet resultSet = null;
+        jdbcTemplate.update("INSERT INTO author (first_name, last_name) VALUES (?, ?)", author.getFirstName(), author.getLastName());
 
-        try {
-            connection = source.getConnection();
-            preparedStatement = connection.prepareStatement("INSERT INTO author (first_name, last_name) VALUES (?, ?)");
-            preparedStatement.setString(1, author.getFirstName());
-            preparedStatement.setString(2, author.getLastName());
-            preparedStatement.execute();
+        Long createdId = jdbcTemplate.queryForObject("SELECT last_insert_id()", Long.class);
 
-            Statement statement = connection.createStatement();
-
-            resultSet = statement.executeQuery("SELECT LAST_INSERT_ID()");
-
-            if (resultSet.next()) {
-                Long savedId = resultSet.getLong(1);
-                return this.getById(savedId);
-            }
-
-            statement.close();
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } finally {
-            try {
-                closeAll(connection, preparedStatement, resultSet);
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-        }
-
-        return null;
+        return this.getById(createdId);
     }
 
     @Override
     public Author updateAuthor(Author author) {
-        Connection connection = null;
-        PreparedStatement preparedStatement = null;
-        ResultSet resultSet = null;
 
-        try {
-            connection = source.getConnection();
-            preparedStatement = connection.prepareStatement("UPDATE author SET first_name = ?, last_name = ? where id = ?");
-            preparedStatement.setString(1, author.getFirstName());
-            preparedStatement.setString(2, author.getLastName());
-            preparedStatement.setLong(3, author.getId());
-            preparedStatement.execute();
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } finally {
-            try {
-                closeAll(connection, preparedStatement, resultSet);
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-        }
+        jdbcTemplate.update("UPDATE author SET first_name = ?, last_name = ? WHERE id = ?", author.getFirstName(), author.getLastName(), author.getId());
 
         return this.getById(author.getId());
     }
 
     @Override
     public void deleteAuthorById(Long id) {
-        Connection connection = null;
-        PreparedStatement preparedStatement = null;
-
-        try {
-            connection = source.getConnection();
-            preparedStatement = connection.prepareStatement("DELETE FROM author WHERE id = ?");
-            preparedStatement.setLong(1, id);
-            preparedStatement.execute();
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } finally {
-            try {
-                closeAll(connection, preparedStatement, null);
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-        }
+        jdbcTemplate.update("DELETE FROM author WHERE id = ?", id);
     }
 
-    private void closeAll(Connection connection, PreparedStatement preparedStatement, ResultSet resultSet) throws SQLException {
-            if (resultSet != null) {
-                resultSet.close();
-            }
-
-            if (preparedStatement != null) {
-                preparedStatement.close();
-            }
-
-            if (connection != null) {
-                connection.close();
-            }
+    private AuthorMapper getRowMapper(){
+        return new AuthorMapper();
     }
 
-    private Author getAuthorFromResultSet(ResultSet resultSet) throws SQLException {
-        Author author = new Author();
-        author.setId(resultSet.getLong("id"));
-        author.setFirstName(resultSet.getString("first_name"));
-        author.setLastName(resultSet.getString("last_name"));
-
-        return author;
-    }
 }
